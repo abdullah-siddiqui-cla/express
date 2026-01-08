@@ -17,6 +17,9 @@ Create a `.env` file in the root directory:
 ```bash
 # JWT Secret Key - Change this to a secure random string in production
 JWT_SECRET=your-super-secret-jwt-key-change-this-in-production-123456789
+
+# MongoDB Connection String
+MONGODB_URI=mongodb://localhost:27017/your-database-name
 ```
 
 ### Step 2: Create Project Structure
@@ -24,21 +27,30 @@ JWT_SECRET=your-super-secret-jwt-key-change-this-in-production-123456789
 Start with a basic Express app and create the MVC folder structure:
 
 ```bash
-mkdir routes controllers services middlewares
+mkdir routes controllers services middlewares models config seeds
 ```
 
 Your final project structure should look like this:
 
 ```
 6-express/
+├── config/
+│   └── database.js
 ├── controllers/
 │   ├── productController.js
 │   └── userController.js
 ├── middlewares/
 │   └── authMiddleware.js
+├── models/
+│   ├── Product.js
+│   └── User.js
 ├── routes/
 │   ├── productRoutes.js
 │   └── userRoutes.js
+├── seeds/
+│   ├── index.js
+│   ├── productSeeds.js
+│   └── userSeeds.js
 ├── services/
 │   ├── productService.js
 │   ├── userService.js
@@ -53,87 +65,175 @@ Your final project structure should look like this:
 ## 🔧 Step 2: Install Dependencies
 
 ```bash
-npm install jsonwebtoken
+npm install express mongoose jsonwebtoken dotenv ejs cors
+npm install --save-dev nodemon
 ```
 
 > **Note**: If you encounter npm cache issues, run `npm cache clean --force` first.
 
-## 📦 Step 3: Create Product Service Layer
+## 📦 Step 3: Create Database Connection
 
-The **Service Layer** handles business logic and data management. Let's start with the Product Service:
+The **Database Configuration** handles MongoDB connection using Mongoose:
+
+**`config/database.js`**
+
+```javascript
+import mongoose from "mongoose";
+
+/**
+ * Database Configuration
+ *
+ * This module handles the MongoDB connection using Mongoose.
+ * Make sure to set MONGODB_URI in your .env file before running the app.
+ */
+
+// MongoDB connection function
+export const connectDB = async () => {
+  try {
+    // Connect to MongoDB using connection string from environment variable
+    await mongoose.connect(process.env.MONGODB_URI);
+
+    console.log("MongoDB connected successfully");
+  } catch (error) {
+    console.error("MongoDB connection error:", error.message);
+    process.exit(1); // Exit process with failure
+  }
+};
+
+// Handle connection events
+mongoose.connection.on("disconnected", () => {
+  console.log("MongoDB disconnected");
+});
+
+mongoose.connection.on("error", (error) => {
+  console.error("MongoDB connection error:", error);
+});
+```
+
+## 📦 Step 4: Create Models
+
+The **Model Layer** defines the database schemas using Mongoose:
+
+**`models/Product.js`**
+
+```javascript
+import mongoose from "mongoose";
+
+// Define the Product schema
+const productSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, "Product name is required"],
+      trim: true,
+    },
+    price: {
+      type: Number,
+      required: [true, "Product price is required"],
+      min: [0, "Price cannot be negative"],
+    },
+  },
+  {
+    timestamps: true, // Automatically adds createdAt and updatedAt fields
+  }
+);
+
+// Create and export the Product model
+const Product = mongoose.model("Product", productSchema);
+
+export default Product;
+```
+
+**`models/User.js`**
+
+```javascript
+import mongoose from "mongoose";
+
+// Define the User schema
+const userSchema = new mongoose.Schema(
+  {
+    username: {
+      type: String,
+      required: [true, "Username is required"],
+      unique: true,
+      trim: true,
+      minlength: [3, "Username must be at least 3 characters long"],
+    },
+    password: {
+      type: String,
+      required: [true, "Password is required"],
+      minlength: [6, "Password must be at least 6 characters long"],
+    },
+    email: {
+      type: String,
+      required: [true, "Email is required"],
+      unique: true,
+      trim: true,
+      lowercase: true,
+      match: [/^\S+@\S+\.\S+$/, "Please provide a valid email"],
+    },
+  },
+  {
+    timestamps: true, // Automatically adds createdAt and updatedAt fields
+  }
+);
+
+// Create and export the User model
+const User = mongoose.model("User", userSchema);
+
+export default User;
+```
+
+## 📦 Step 5: Create Product Service Layer
+
+The **Service Layer** handles business logic and data management using models:
 
 **`services/productService.js`**
 
 ```javascript
 // Product Service - handles all product-related business logic
+import Product from "../models/Product.js";
 
-// Module-level state
-let products = [
-  { id: 1, name: "Product 1", price: 100 },
-  { id: 2, name: "Product 2", price: 200 },
-  { id: 3, name: "Product 3", price: 300 },
-];
-let nextId = 4;
-
-// Get all products
-export const getAllProducts = () => {
-  return products;
+// Get all products from database
+export const getAllProducts = async () => {
+  return await Product.find();
 };
 
-// Get product by ID
-export const getProductById = (id) => {
-  return products.find((product) => product.id === parseInt(id));
+// Get product by ID from database
+export const getProductById = async (id) => {
+  return await Product.findById(id);
 };
 
-// Create new product
-export const createProduct = (productData) => {
-  const newProduct = {
-    id: nextId++,
-    ...productData,
-  };
-  products.push(newProduct);
-  return newProduct;
+// Create new product in database
+export const createProduct = async (productData) => {
+  const newProduct = new Product(productData);
+  return await newProduct.save();
 };
 
-// Update product by ID
-export const updateProduct = (id, updateData) => {
-  const productIndex = products.findIndex(
-    (product) => product.id === parseInt(id)
-  );
-  if (productIndex === -1) {
-    return null;
-  }
-
-  products[productIndex] = {
-    ...products[productIndex],
-    ...updateData,
-  };
-  return products[productIndex];
+// Update product by ID in database
+export const updateProduct = async (id, updateData) => {
+  // findByIdAndUpdate returns the updated document
+  // { new: true } option returns the modified document rather than the original
+  return await Product.findByIdAndUpdate(id, updateData, {
+    new: true,
+    runValidators: true,
+  });
 };
 
-// Delete product by ID
-export const deleteProduct = (id) => {
-  const productIndex = products.findIndex(
-    (product) => product.id === parseInt(id)
-  );
-  if (productIndex === -1) {
-    return null;
-  }
-
-  const deletedProduct = products[productIndex];
-  products.splice(productIndex, 1);
-  return deletedProduct;
+// Delete product by ID from database
+export const deleteProduct = async (id) => {
+  return await Product.findByIdAndDelete(id);
 };
 ```
 
 **Key Concepts:**
 
 - Service layer encapsulates business logic
-- Manages data storage (in-memory array for demo)
-- Provides CRUD operations
+- Uses Mongoose models to interact with MongoDB
+- Provides async CRUD operations
 - Returns data without HTTP concerns
 
-## 🎯 Step 4: Create Product Controller
+## 🎯 Step 6: Create Product Controller
 
 The **Controller Layer** handles HTTP requests and responses, delegating business logic to services:
 
@@ -150,9 +250,9 @@ import {
 } from "../services/productService.js";
 
 // Get all products
-export const getAllProducts = (req, res) => {
+export const getAllProducts = async (req, res) => {
   try {
-    const products = getAllProductsService();
+    const products = await getAllProductsService();
     res.json(products);
   } catch (error) {
     res.status(500).json({ error: "Internal server error" });
@@ -160,10 +260,10 @@ export const getAllProducts = (req, res) => {
 };
 
 // Get product by ID
-export const getProductById = (req, res) => {
+export const getProductById = async (req, res) => {
   try {
     const { id } = req.params;
-    const product = getProductByIdService(id);
+    const product = await getProductByIdService(id);
 
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
@@ -176,7 +276,7 @@ export const getProductById = (req, res) => {
 };
 
 // Create new product
-export const createProduct = (req, res) => {
+export const createProduct = async (req, res) => {
   try {
     const { name, price } = req.body;
 
@@ -188,7 +288,7 @@ export const createProduct = (req, res) => {
       return res.status(400).json({ error: "Price must be a positive number" });
     }
 
-    const newProduct = createProductService({ name, price });
+    const newProduct = await createProductService({ name, price });
     res.status(201).json(newProduct);
   } catch (error) {
     res.status(500).json({ error: "Internal server error" });
@@ -196,12 +296,12 @@ export const createProduct = (req, res) => {
 };
 
 // Update product
-export const updateProduct = (req, res) => {
+export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, price } = req.body;
 
-    const updatedProduct = updateProductService(id, { name, price });
+    const updatedProduct = await updateProductService(id, { name, price });
 
     if (!updatedProduct) {
       return res.status(404).json({ error: "Product not found" });
@@ -214,10 +314,10 @@ export const updateProduct = (req, res) => {
 };
 
 // Delete product
-export const deleteProduct = (req, res) => {
+export const deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const deletedProduct = deleteProductService(id);
+    const deletedProduct = await deleteProductService(id);
 
     if (!deletedProduct) {
       return res.status(404).json({ error: "Product not found" });
@@ -241,7 +341,7 @@ export const deleteProduct = (req, res) => {
 - Return appropriate HTTP responses
 - Export functions for routing
 
-## 🛣️ Step 5: Create Product Routes
+## 🛣️ Step 7: Create Product Routes
 
 The **Routes Layer** defines API endpoints and maps them to controllers:
 
@@ -285,7 +385,7 @@ export default router;
 - Use Express Router for modular routing
 - Follow RESTful conventions
 
-## 🔐 Step 6: Create JWT Service
+## 🔐 Step 8: Create JWT Service
 
 The JWT Service handles token creation and verification:
 
@@ -319,66 +419,55 @@ export const verify = (token) => {
 };
 ```
 
-**Production Note:** Replace the mock implementation with actual `jsonwebtoken` library calls.
+## 👤 Step 9: Create User Service
 
-## 👤 Step 7: Create User Service
-
-The User Service handles authentication logic:
+The User Service handles authentication logic using the User model:
 
 **`services/userService.js`**
 
 ```javascript
 // User Service - handles user authentication and management
 import { sign } from "./jwtService.js";
+import User from "../models/User.js";
 
-// Module-level state
-const users = [
-  {
-    id: 1,
-    username: "admin",
-    password: "admin123",
-    email: "admin@example.com",
-  },
-  { id: 2, username: "user", password: "user123", email: "user@example.com" },
-];
-
-// Authenticate user with username and password
-export const authenticateUser = (username, password) => {
-  const user = users.find((u) => u.username === username);
+// Authenticate user with username and password from database
+export const authenticateUser = async (username, password) => {
+  // Find user by username
+  const user = await User.findOne({ username });
 
   if (!user) {
     return null; // User not found
   }
 
+  // Note: In production, you should use bcrypt to hash and compare passwords
   if (user.password !== password) {
     return null; // Password doesn't match
   }
 
   // Return user without password
-  const { password: _, ...userWithoutPassword } = user;
+  const userObject = user.toObject();
+  const { password: _, ...userWithoutPassword } = userObject;
   return userWithoutPassword;
 };
 
 // Generate JWT token for authenticated user
 export const generateToken = (user) => {
   return sign({
-    userId: user.id,
+    userId: user._id, // MongoDB uses _id instead of id
     username: user.username,
     email: user.email,
   });
 };
 
 // Get user by ID (without password)
-export const getUserById = (id) => {
-  const user = users.find((u) => u.id === parseInt(id));
-  if (!user) return null;
-
-  const { password: _, ...userWithoutPassword } = user;
-  return userWithoutPassword;
+export const getUserById = async (id) => {
+  // Use select('-password') to exclude password from the result
+  const user = await User.findById(id).select("-password");
+  return user;
 };
 ```
 
-## 🎮 Step 8: Create User Controller
+## 🎮 Step 10: Create User Controller
 
 **`controllers/userController.js`**
 
@@ -387,7 +476,7 @@ export const getUserById = (id) => {
 import { authenticateUser, generateToken } from "../services/userService.js";
 
 // Sign in user
-export const signIn = (req, res) => {
+export const signIn = async (req, res) => {
   try {
     const { username, password } = req.body;
 
@@ -400,7 +489,7 @@ export const signIn = (req, res) => {
     }
 
     // Authenticate user
-    const user = authenticateUser(username, password);
+    const user = await authenticateUser(username, password);
 
     if (!user) {
       return res.status(401).json({
@@ -429,7 +518,7 @@ export const signIn = (req, res) => {
 };
 ```
 
-## 🛤️ Step 9: Create User Routes
+## 🛤️ Step 11: Create User Routes
 
 **`routes/userRoutes.js`**
 
@@ -446,7 +535,7 @@ router.post("/signin", signIn);
 export default router;
 ```
 
-## 🛡️ Step 10: Create Authentication Middleware
+## 🛡️ Step 12: Create Authentication Middleware
 
 The **Middleware Layer** handles cross-cutting concerns like authentication:
 
@@ -458,7 +547,7 @@ import { verify } from "../services/jwtService.js";
 import { getUserById } from "../services/userService.js";
 
 // Middleware function to authenticate requests
-export const authenticateToken = (req, res, next) => {
+export const authenticateToken = async (req, res, next) => {
   try {
     // Get token from Authorization header
     const authHeader = req.headers["authorization"];
@@ -475,7 +564,7 @@ export const authenticateToken = (req, res, next) => {
     const decoded = verify(token);
 
     // Get user details and attach to request
-    const user = getUserById(decoded.userId);
+    const user = await getUserById(decoded.userId);
 
     if (!user) {
       return res.status(401).json({
@@ -505,25 +594,31 @@ export const authenticateToken = (req, res, next) => {
 - Attaches user data to request object
 - Protects routes by rejecting unauthorized requests
 
-## 🚀 Step 11: Update Main Application File
+## 🚀 Step 13: Update Main Application File
 
-**`index.js`** - Add imports and route configuration:
+**`index.js`** - Add imports, database connection, and route configuration:
 
 ```javascript
+import "dotenv/config"; // Load environment variables from .env file
 import express from "express";
 import productRoutes from "./routes/productRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import { authenticateToken } from "./middlewares/authMiddleware.js";
+import { connectDB } from "./config/database.js";
 
 const app = express();
 
-// ... existing middleware ...
+// Connect to MongoDB
+connectDB();
+
+app.use(express.static("public"));
+app.set("view engine", "ejs");
+app.set("views", "./views");
+app.use(express.json());
 
 // Routes
 app.use("/api/users", userRoutes);
 app.use("/api/products", authenticateToken, productRoutes);
-
-// ... existing routes ...
 
 // Error handling middleware
 app.use((error, req, res, next) => {
@@ -540,17 +635,137 @@ app.use((error, req, res, next) => {
 });
 
 // 404 handler for undefined routes
-app.use((req, res) => {
+app.use((req, res, next) => {
   res.status(404).json({
     success: false,
     error: "Route not found",
   });
 });
 
-// ... existing app.listen ...
+app.listen(3011, () => {
+  console.log("Server is running on port 3011");
+});
 ```
 
-## 🧪 Step 12: Test the APIs
+## 🌱 Step 14: Create Database Seeds
+
+The **Seeds** populate the database with initial data for development and testing:
+
+**`seeds/userSeeds.js`**
+
+```javascript
+import User from "../models/User.js";
+
+// Sample user data
+// Note: In production, passwords should be hashed using bcrypt
+const users = [
+  {
+    username: "admin",
+    password: "admin123",
+    email: "admin@example.com",
+  },
+  {
+    username: "john_doe",
+    password: "password123",
+    email: "john.doe@example.com",
+  },
+  // ... more users
+];
+
+// Function to seed users into the database
+export const seedUsers = async () => {
+  try {
+    // Clear existing users
+    await User.deleteMany({});
+    console.log("Cleared existing users");
+
+    // Insert new users
+    const createdUsers = await User.insertMany(users);
+    console.log(`${createdUsers.length} users seeded successfully`);
+
+    return createdUsers;
+  } catch (error) {
+    console.error("Error seeding users:", error.message);
+    throw error;
+  }
+};
+```
+
+**`seeds/productSeeds.js`**
+
+```javascript
+import Product from "../models/Product.js";
+
+// Sample product data
+const products = [
+  { name: "Laptop", price: 999.99 },
+  { name: "Smartphone", price: 699.99 },
+  // ... more products
+];
+
+// Function to seed products into the database
+export const seedProducts = async () => {
+  try {
+    // Clear existing products
+    await Product.deleteMany({});
+    console.log("Cleared existing products");
+
+    // Insert new products
+    const createdProducts = await Product.insertMany(products);
+    console.log(`${createdProducts.length} products seeded successfully`);
+
+    return createdProducts;
+  } catch (error) {
+    console.error("Error seeding products:", error.message);
+    throw error;
+  }
+};
+```
+
+**`seeds/index.js`**
+
+```javascript
+import "dotenv/config"; // Load environment variables from .env file
+import mongoose from "mongoose";
+import { connectDB } from "../config/database.js";
+import { seedProducts } from "./productSeeds.js";
+import { seedUsers } from "./userSeeds.js";
+
+// Main function to run all seeds
+const runSeeds = async () => {
+  try {
+    // Connect to database
+    await connectDB();
+    console.log("\nStarting database seeding...\n");
+
+    // Run all seed functions
+    await seedUsers();
+    await seedProducts();
+
+    console.log("\nAll seeds completed successfully!\n");
+
+    // Close database connection
+    await mongoose.connection.close();
+    console.log("Database connection closed");
+    process.exit(0);
+  } catch (error) {
+    console.error("Seeding failed:", error.message);
+    await mongoose.connection.close();
+    process.exit(1);
+  }
+};
+
+// Run the seeds
+runSeeds();
+```
+
+**Run seeds:**
+
+```bash
+npm run seed
+```
+
+## 🧪 Step 15: Test the APIs
 
 ### 1. Sign In to Get Token
 
@@ -638,16 +853,19 @@ Authorization: Bearer YOUR_TOKEN_HERE
 
 ### MVC Architecture
 
-- **Model**: Services handle data and business logic
+- **Model**: Mongoose schemas define data structure and validation
 - **View**: Not applicable (API returns JSON)
 - **Controller**: Handle HTTP requests/responses
+- **Service**: Business logic and database operations using models
 
 ### Layer Separation
 
 - **Routes**: Define endpoints and HTTP methods
 - **Controllers**: Process requests, call services, format responses
-- **Services**: Contain business logic and data management
+- **Services**: Contain business logic and interact with models
+- **Models**: Define database schemas and provide data access
 - **Middleware**: Handle cross-cutting concerns (auth, logging, etc.)
+- **Config**: Database connection and configuration
 
 ### RESTful API Design
 
@@ -681,12 +899,12 @@ Authorization: Bearer YOUR_TOKEN_HERE
 
 ## 🚀 Next Steps
 
-1. Add a real database (MongoDB, PostgreSQL)
-2. Implement password hashing with bcrypt
-3. Add input validation with Joi or express-validator
-4. Implement refresh tokens
-5. Add role-based authorization
-6. Add comprehensive logging
-7. Write unit and integration tests
+1. Implement password hashing with bcrypt
+2. Add input validation with Joi or express-validator
+3. Implement refresh tokens
+4. Add role-based authorization
+5. Add comprehensive logging
+6. Write unit and integration tests
+7. Add environment-specific configurations
 
 This guide provides a solid foundation for building scalable Express.js applications with proper separation of concerns!
