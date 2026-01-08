@@ -1,9 +1,14 @@
+import 'dotenv/config'; // Load environment variables from .env file
 import express from 'express';
 import productRoutes from './routes/productRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import { authenticateToken } from './middlewares/authMiddleware.js';
+import { connectDB } from './config/database.js';
 
 const app = express();
+
+// Connect to MongoDB
+connectDB();
 
 app.use(express.static('public'));
 app.set('view engine', 'ejs');
@@ -30,7 +35,7 @@ app.use((error, req, res, next) => {
 });
 
 // 404 handler for undefined routes
-app.use((req, res) => {
+app.use((req, res, next) => {
   res.status(404).json({
     success: false,
     error: 'Route not found'
