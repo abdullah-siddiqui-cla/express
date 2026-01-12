@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { connectDB } from '../config/database.js';
 import { seedProducts } from './productSeeds.js';
 import { seedUsers } from './userSeeds.js';
+import { seedCategories } from './categorySeeds.js';
 
 // Main function to run all seeds
 const runSeeds = async () => {
@@ -13,6 +14,7 @@ const runSeeds = async () => {
 
     // Run all seed functions
     await seedUsers();
+    await seedCategories();
     await seedProducts();
 
     console.log('\nAll seeds completed successfully!\n');

@@ -1,6 +1,7 @@
 // User Service - handles user authentication and management
 import { sign } from './jwtService.js';
 import User from '../models/User.js';
+import bcrypt from 'bcrypt';
 
 // Authenticate user with username and password from database
 export const authenticateUser = async (username, password) => {
@@ -11,8 +12,9 @@ export const authenticateUser = async (username, password) => {
     return null; // User not found
   }
 
-  // Note: In production, you should use bcrypt to hash and compare passwords
-  if (user.password !== password) {
+  // Compare provided password with hashed password
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+  if (!isPasswordValid) {
     return null; // Password doesn't match
   }
 

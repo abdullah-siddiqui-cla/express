@@ -2,6 +2,7 @@ import 'dotenv/config'; // Load environment variables from .env file
 import express from 'express';
 import productRoutes from './routes/productRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import categoryRoutes from './routes/categoryRoutes.js';
 import { authenticateToken } from './middlewares/authMiddleware.js';
 import { connectDB } from './config/database.js';
 
@@ -18,6 +19,7 @@ app.use(express.json());
 // Routes
 app.use('/api/users', userRoutes);
 app.use('/api/products', authenticateToken, productRoutes);
+app.use('/api/categories', authenticateToken, categoryRoutes);
 
 // Error handling middleware
 app.use((error, req, res, next) => {

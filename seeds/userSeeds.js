@@ -1,7 +1,7 @@
 import User from '../models/User.js';
+import bcrypt from 'bcrypt';
 
 // Sample user data
-// Note: In production, passwords should be hashed using bcrypt
 const users = [
   {
     username: 'admin',
@@ -37,8 +37,20 @@ export const seedUsers = async () => {
     await User.deleteMany({});
     console.log('Cleared existing users');
 
-    // Insert new users
-    const createdUsers = await User.insertMany(users);
+    // Hash passwords before inserting
+    const usersWithHashedPasswords = await Promise.all(
+      users.map(async (user) => {
+        const hashedPassword = await bcrypt.hash(user.password, 10);
+        return {
+          username: user.username,
+          password: hashedPassword,
+          email: user.email
+        };
+      })
+    );
+
+    // Insert new users with hashed passwords
+    const createdUsers = await User.insertMany(usersWithHashedPasswords);
     console.log(`${createdUsers.length} users seeded successfully`);
     
     return createdUsers;

@@ -1,4 +1,5 @@
 import Product from '../models/Product.js';
+import Category from '../models/Category.js';
 
 // Sample product data
 const products = [
@@ -21,10 +22,22 @@ export const seedProducts = async () => {
     await Product.deleteMany({});
     console.log('Cleared existing products');
 
+    // Fetch all categories
+    const categories = await Category.find({});
+    if (categories.length === 0) {
+      throw new Error('No categories found. Please seed categories first.');
+    }
+
+    // Randomly assign categories to products
+    const productsWithCategories = products.map(product => ({
+      ...product,
+      category: categories[Math.floor(Math.random() * categories.length)]._id
+    }));
+
     // Insert new products
-    const createdProducts = await Product.insertMany(products);
+    const createdProducts = await Product.insertMany(productsWithCategories);
     console.log(`${createdProducts.length} products seeded successfully`);
-    
+
     return createdProducts;
   } catch (error) {
     console.error('Error seeding products:', error.message);

@@ -13,6 +13,10 @@ const productSchema = new mongoose.Schema({
     type: Number,
     required: [true, 'Product price is required'],
     min: [0, 'Price cannot be negative']
+  },
+  category: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Category'
   }
 }, {
   timestamps: true // Automatically adds createdAt and updatedAt fields
