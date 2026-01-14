@@ -7,6 +7,7 @@ import {
   updateCategory,
   deleteCategory
 } from '../controllers/categoryController.js';
+import { requireAdmin } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 
@@ -16,8 +17,8 @@ router.get('/', getAllCategories);
 // GET /api/categories/:id - Get category by ID (with products)
 router.get('/:id', getCategoryById);
 
-// POST /api/categories - Create new category
-router.post('/', createCategory);
+// POST /api/categories - Create new category (Admin only)
+router.post('/', requireAdmin, createCategory);
 
 // PUT /api/categories/:id - Update category by ID
 router.put('/:id', updateCategory);

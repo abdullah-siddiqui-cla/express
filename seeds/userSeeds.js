@@ -6,7 +6,8 @@ const users = [
   {
     username: 'admin',
     password: 'admin123',
-    email: 'admin@example.com'
+    email: 'admin@example.com',
+    isAdmin: true
   },
   {
     username: 'john_doe',
@@ -44,7 +45,8 @@ export const seedUsers = async () => {
         return {
           username: user.username,
           password: hashedPassword,
-          email: user.email
+          email: user.email,
+          isAdmin: user.isAdmin || false
         };
       })
     );

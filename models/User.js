@@ -21,6 +21,10 @@ const userSchema = new mongoose.Schema({
     trim: true,
     lowercase: true,
     match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email']
+  },
+  isAdmin: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true // Automatically adds createdAt and updatedAt fields

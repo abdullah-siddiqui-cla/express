@@ -7,6 +7,7 @@ import {
   updateProduct,
   deleteProduct
 } from '../controllers/productController.js';
+import { requireAdmin } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 
@@ -16,8 +17,8 @@ router.get('/', getAllProducts);
 // GET /api/products/:id - Get product by ID
 router.get('/:id', getProductById);
 
-// POST /api/products - Create new product
-router.post('/', createProduct);
+// POST /api/products - Create new product (Admin only)
+router.post('/', requireAdmin, createProduct);
 
 // PUT /api/products/:id - Update product by ID
 router.put('/:id', updateProduct);
