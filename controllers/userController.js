@@ -1,17 +1,13 @@
 // User Controller - handles user authentication requests
 import { authenticateUser, generateToken } from '../services/userService.js';
+import { signInSchema } from '../validators/auth.js';
 
 // Sign in user
 export const signIn = async (req, res) => {
-  const { username, password } = req.body;
+  let userData = await signInSchema.validate(req.body);
 
-  // Validate input
-  if (!username || !password) {
-    return res.status(400).json({
-      success: false,
-      error: 'Username and password are required'
-    });
-  }
+  let username = userData.username;
+  let password = userData.password;
 
   // Authenticate user
   const user = await authenticateUser(username, password);
